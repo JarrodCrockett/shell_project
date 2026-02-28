@@ -1,46 +1,52 @@
-use std::io::{self, Write};
+use rustyline::DefaultEditor;
 use std::process::Command;
 
 fn main() {
+    let mut rl = DefaultEditor::new().unwrap();
+
     loop {
         let current_dir = std::env::current_dir().unwrap();
         let dir_name = current_dir.file_name().unwrap().to_string_lossy();
-        print!("{}$ ", dir_name);
-        io::stdout().flush().unwrap();
+        let prompt = format!("{} $ ", dir_name);
 
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        let readline = rl.readline(&prompt);
 
-        let input = input.trim();
+        match readline {
+            Ok(line) => {
+                let input = line.trim().to_string();
 
-        if input == "exit" {
-            break;
-        }
+                if input.is_empty() {
+                    continue;
+                }
 
-        let mut parts = input.split_whitespace();
-        let command = parts.next();
-        let args: Vec<&str> = parts.collect();
+                rl.add_history_entry(&input).unwrap();
 
-        match command {
-            Some("cd") => {
-                let dir = args.iter().peekable().peek().map_or("/", |x| *x);
-                if let Err(e) = std::env::set_current_dir(dir){
-                    println!("Error: {}", e)
+                if input == "exit" {
+                    break;
+                }
+
+                let mut parts = input.split_whitespace();
+                let command = parts.next();
+                let args: Vec<&str> = parts.collect();
+
+                match command {
+                    Some("cd") => {
+                        let dir = args.first().copied().unwrap_or("/");
+                        if let Err(e) = std::env::set_current_dir(dir) {
+                            println!("Error: {}", e);
+                        }
+                    }
+                    Some(cmd) => {
+                        let status = Command::new(cmd).args(args).status();
+                        match status {
+                            Ok(_) => {}
+                            Err(e) => println!("Error: {}", e),
+                        }
+                    }
+                    None => {}
                 }
             }
-
-            Some(cmd) => {
-                let status = Command::new(cmd)
-                    .args(args)
-                    .status();
-
-                match status {
-                    Ok(_) => {},
-                    Err(e) => println!("Error: {}", e),
-                }
-            }
-            None => {}
-            
+            Err(_) => break,
         }
     }
-} 
+}
