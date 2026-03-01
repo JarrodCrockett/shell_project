@@ -1,5 +1,6 @@
 use rustyline::DefaultEditor;
 use std::process::Command;
+use std::process::Stdio;
 
 fn main() {
     let mut rl = DefaultEditor::new().unwrap();
@@ -24,26 +25,70 @@ fn main() {
                 if input == "exit" {
                     break;
                 }
+                
+                if input.contains('|') {
+                    let commands: Vec<&str> = input.split('|').map(|cmd| cmd.trim()).collect();
+                    
+                    let mut prev_output = None;
+                    let mut last_child = None;  // add this before the loop
 
-                let mut parts = input.split_whitespace();
-                let command = parts.next();
-                let args: Vec<&str> = parts.collect();
+                    for cmd_str in &commands {
+                        let mut parts = cmd_str.split_whitespace();
+                        let command = parts.next().unwrap();
+                        let args: Vec<&str> = parts.collect();
 
-                match command {
-                    Some("cd") => {
-                        let dir = args.first().copied().unwrap_or("/");
-                        if let Err(e) = std::env::set_current_dir(dir) {
-                            println!("Error: {}", e);
-                        }
+                        let is_last = cmd_str == commands.last().unwrap();
+
+                        let stdout = if is_last {
+                            Stdio::inherit()
+                        } else {
+                            Stdio::piped()
+                        };
+
+                        let stdin = match prev_output {
+                            None => Stdio::inherit(),
+                            Some(output) => Stdio::from(output),
+                        };
+
+                        let mut child = Command::new(command)
+                            .args(&args)
+                            .stdin(stdin)
+                            .stdout(stdout)
+                            .spawn()
+                            .unwrap();
+
+                        prev_output = child.stdout.take();
+                        last_child = Some(child);  // track the child
                     }
-                    Some(cmd) => {
-                        let status = Command::new(cmd).args(args).status();
-                        match status {
-                            Ok(_) => {}
-                            Err(e) => println!("Error: {}", e),
-                        }
+
+                    // after the loop, wait for the last one
+                    if let Some(mut child) = last_child {
+                        child.wait().unwrap();
                     }
-                    None => {}
+                } else {
+                    
+                    let mut parts = input.split_whitespace();
+                    let command = parts.next();
+                    let args: Vec<&str> = parts.collect();
+                
+
+
+                    match command {
+                        Some("cd") => {
+                            let dir = args.first().copied().unwrap_or("/");
+                            if let Err(e) = std::env::set_current_dir(dir) {
+                                println!("Error: {}", e);
+                            }
+                        }
+                        Some(cmd) => {
+                            let status = Command::new(cmd).args(args).status();
+                            match status {
+                                Ok(_) => {}
+                                Err(e) => println!("Error: {}", e),
+                            }
+                        }
+                        None => {}
+                    }
                 }
             }
             Err(_) => break,
