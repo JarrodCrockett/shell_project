@@ -26,7 +26,25 @@ fn main() {
                     break;
                 }
                 
-                if input.contains('|') {
+
+                if input.contains('>') {
+                    let parts: Vec<&str> = input.split('>').collect();
+                    let cmd_part = parts[0].trim();
+                    let file_path = parts[1].trim();
+
+                    let mut cmd_parts = cmd_part.split_whitespace();
+                    let command = cmd_parts.next().unwrap();
+                    let args: Vec<&str> = cmd_parts.collect();
+
+                    let file = std::fs::File::create(file_path).unwrap();
+
+                    Command::new(command)
+                        .args(args)
+                        .stdout(Stdio::from(file))
+                        .status()
+                        .unwrap();
+                }
+                else if input.contains('|') {
                     let commands: Vec<&str> = input.split('|').map(|cmd| cmd.trim()).collect();
                     
                     let mut prev_output = None;
