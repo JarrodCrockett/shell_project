@@ -35,7 +35,7 @@ fn main() {
                     let mut cmd_parts = cmd_part.split_whitespace();
                     let command = cmd_parts.next().unwrap();
                     let args: Vec<&str> = cmd_parts.collect();
-
+                    let args = expand_env_vars(args);
                     let file = std::fs::File::create(file_path).unwrap();
 
                     Command::new(command)
@@ -54,7 +54,7 @@ fn main() {
                         let mut parts = cmd_str.split_whitespace();
                         let command = parts.next().unwrap();
                         let args: Vec<&str> = parts.collect();
-
+                        let args = expand_env_vars(args);
                         let is_last = cmd_str == commands.last().unwrap();
 
                         let stdout = if is_last {
@@ -88,12 +88,12 @@ fn main() {
                     let mut parts = input.split_whitespace();
                     let command = parts.next();
                     let args: Vec<&str> = parts.collect();
-                
+                    let args = expand_env_vars(args);
 
 
                     match command {
                         Some("cd") => {
-                            let dir = args.first().copied().unwrap_or("/");
+                            let dir = args.first().map(String::as_str).unwrap_or("/");
                             if let Err(e) = std::env::set_current_dir(dir) {
                                 println!("Error: {}", e);
                             }
@@ -112,4 +112,15 @@ fn main() {
             Err(_) => break,
         }
     }
+}
+
+fn expand_env_vars(args: Vec<&str>) -> Vec<String> {
+    args.iter().map(|arg| {
+        if arg.starts_with('$') {
+            let key = &arg[1..];  // strip the $ by slicing from index 1
+            std::env::var(key).unwrap_or_else(|_| String::new())
+        } else {
+            arg.to_string()
+        }
+    }).collect()
 }
